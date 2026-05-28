@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { useState, useMemo, useEffect } from "react";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, where } from "firebase/firestore";
@@ -21,17 +22,6 @@ const CATEGORIES = {
   expense: ["Makanan", "Transport", "Kesehatan", "Pendidikan", "Hiburan", "Belanja", "Tagihan", "Lainnya"],
 };
 
-const DEFAULT_REKENING = [
-  { id: "bni", nama: "BNI", saldo: 0 },
-  { id: "mandiri", nama: "Mandiri", saldo: 0 },
-  { id: "bri", nama: "BRI", saldo: 0 },
-  { id: "dana", nama: "Dana", saldo: 0 },
-  { id: "ovo", nama: "OVO", saldo: 0 },
-  { id: "gopay", nama: "GoPay", saldo: 0 },
-  { id: "seabank", nama: "Seabank", saldo: 0 },
-  { id: "tunai", nama: "Uang Tunai", saldo: 0 },
-];
-
 const MONTHS = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
 
 function formatRupiah(num) {
@@ -42,6 +32,10 @@ function today() {
   return new Date().toISOString().split("T")[0];
 }
 
+function toEmail(u) {
+  return u.toLowerCase().replace(/[^a-z0-9]/g, "") + "@fintrack.app";
+}
+
 // ===================== LOGIN PAGE =====================
 function AuthPage() {
   const [mode, setMode] = useState("login");
@@ -49,11 +43,6 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // Ubah username jadi email palsu untuk Firebase
-  function toEmail(u) {
-    return u.toLowerCase().replace(/[^a-z0-9]/g, "") + "@fintrack.app";
-  }
 
   async function handleAuth() {
     if (!username || !password) { setError("Username dan password harus diisi"); return; }
@@ -80,13 +69,10 @@ function AuthPage() {
   return (
     <div style={{ fontFamily: "'Georgia', serif", minHeight: "100vh", background: "#0f0e0c", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ width: "100%", maxWidth: 400 }}>
-        {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <img src="/logo-aksara.png" alt="AKSARA" style={{ height: 60, margin: "0 auto 16px", display: "block" }} />
           <div style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.15em", marginTop: 4 }}>PENCATATAN KEUANGAN PRIBADI</div>
         </div>
-
-        {/* Card */}
         <div style={{ background: "#1a1714", border: "1px solid #2a2520", borderRadius: 20, padding: 32 }}>
           <div style={{ display: "flex", background: "#0f0e0c", borderRadius: 10, padding: 4, marginBottom: 24 }}>
             {["login", "register"].map(m => (
@@ -99,7 +85,6 @@ function AuthPage() {
               </button>
             ))}
           </div>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <label style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>USERNAME</label>
@@ -144,8 +129,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [filterType, setFilterType] = useState("all");
   const [editId, setEditId] = useState(null);
-
-  // Rekening form
   const [showRekeningForm, setShowRekeningForm] = useState(false);
   const [rekeningForm, setRekeningForm] = useState({ nama: "", saldo: "" });
   const [editRekeningId, setEditRekeningId] = useState(null);
@@ -156,18 +139,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) { setTransactions([]); setRekening([]); return; }
+    if (!user) { setTransactions([]); setRekening([]); setLoading(false); return; }
     async function loadData() {
       setLoading(true);
       try {
         const qTx = query(collection(db, "transactions"), where("userId", "==", user.uid));
         const snapTx = await getDocs(qTx);
         setTransactions(snapTx.docs.map(d => ({ id: d.id, ...d.data() })));
-
         const qRek = query(collection(db, "rekening"), where("userId", "==", user.uid));
         const snapRek = await getDocs(qRek);
-        const reks = snapRek.docs.map(d => ({ id: d.id, ...d.data() }));
-        setRekening(reks.length > 0 ? reks : []);
+        setRekening(snapRek.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) { console.error("Error loading:", e); }
       setLoading(false);
     }
@@ -200,44 +181,42 @@ export default function App() {
   }, [transactions, filterType]);
 
   async function handleSubmit() {
-  if (!form.amount || !form.category || !form.description || !form.date) return;
-  setSaving(true);
-  const tx = { ...form, amount: parseFloat(form.amount), userId: user.uid };
-  try {
-    if (editId) {
-      // Kembalikan saldo rekening lama dulu
-      const oldTx = transactions.find(t => t.id === editId);
-      if (oldTx && oldTx.rekeningId) {
-        const oldRek = rekening.find(r => r.id === oldTx.rekeningId);
-        if (oldRek) {
-          const revertAmount = oldTx.type === "income" ? -oldTx.amount : oldTx.amount;
-          const newSaldo = oldRek.saldo + revertAmount;
-          await updateDoc(doc(db, "rekening", oldRek.id), { saldo: newSaldo });
-          setRekening(prev => prev.map(r => r.id === oldRek.id ? { ...r, saldo: newSaldo } : r));
+    if (!form.amount || !form.category || !form.description || !form.date) return;
+    setSaving(true);
+    const tx = { ...form, amount: parseFloat(form.amount), userId: user.uid };
+    try {
+      if (editId) {
+        const oldTx = transactions.find(t => t.id === editId);
+        if (oldTx && oldTx.rekeningId) {
+          const oldRek = rekening.find(r => r.id === oldTx.rekeningId);
+          if (oldRek) {
+            const revertAmount = oldTx.type === "income" ? -oldTx.amount : oldTx.amount;
+            const newSaldo = oldRek.saldo + revertAmount;
+            await updateDoc(doc(db, "rekening", oldRek.id), { saldo: newSaldo });
+            setRekening(prev => prev.map(r => r.id === oldRek.id ? { ...r, saldo: newSaldo } : r));
+          }
+        }
+        await updateDoc(doc(db, "transactions", editId), tx);
+        setTransactions(prev => prev.map(t => t.id === editId ? { ...tx, id: editId } : t));
+        setEditId(null);
+      } else {
+        const docRef = await addDoc(collection(db, "transactions"), tx);
+        setTransactions(prev => [...prev, { ...tx, id: docRef.id }]);
+      }
+      if (tx.rekeningId) {
+        const rek = rekening.find(r => r.id === tx.rekeningId);
+        if (rek) {
+          const changeAmount = tx.type === "income" ? tx.amount : -tx.amount;
+          const newSaldo = rek.saldo + changeAmount;
+          await updateDoc(doc(db, "rekening", rek.id), { saldo: newSaldo });
+          setRekening(prev => prev.map(r => r.id === rek.id ? { ...r, saldo: newSaldo } : r));
         }
       }
-      await updateDoc(doc(db, "transactions", editId), tx);
-      setTransactions(prev => prev.map(t => t.id === editId ? { ...tx, id: editId } : t));
-      setEditId(null);
-    } else {
-      const docRef = await addDoc(collection(db, "transactions"), tx);
-      setTransactions(prev => [...prev, { ...tx, id: docRef.id }]);
-    }
-    // Update saldo rekening baru
-    if (tx.rekeningId) {
-      const rek = rekening.find(r => r.id === tx.rekeningId);
-      if (rek) {
-        const changeAmount = tx.type === "income" ? tx.amount : -tx.amount;
-        const newSaldo = rek.saldo + changeAmount;
-        await updateDoc(doc(db, "rekening", rek.id), { saldo: newSaldo });
-        setRekening(prev => prev.map(r => r.id === rek.id ? { ...r, saldo: newSaldo } : r));
-      }
-    }
-  } catch (e) { console.error("Error saving:", e); }
-  setForm({ type: "expense", amount: "", category: "", description: "", date: today(), rekeningId: "" });
-  setShowForm(false);
-  setSaving(false);
-}
+    } catch (e) { console.error("Error saving:", e); }
+    setForm({ type: "expense", amount: "", category: "", description: "", date: today(), rekeningId: "" });
+    setShowForm(false);
+    setSaving(false);
+  }
 
   async function handleSaveRekening() {
     if (!rekeningForm.nama) return;
@@ -302,14 +281,13 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: "'Georgia', serif", minHeight: "100vh", background: "#0f0e0c", color: "#e8e0d0" }}>
-      {/* Header */}
       <div style={{ background: "linear-gradient(135deg, #1a1714 0%, #0f0e0c 100%)", borderBottom: "1px solid #2a2520", padding: "0 24px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <img src="/logo-aksara.png" alt="AKSARA" style={{ height: 32 }} />
             <div>
               <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "0.05em", color: "#e8c96a" }}>FINTRACK</div>
-              <div style={{ fontSize: 10, color: "#7a6f5e", letterSpacing: "0.1em" }}>{user.email}</div>
+              <div style={{ fontSize: 10, color: "#7a6f5e" }}>{user.email.replace("@fintrack.app", "")}</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -322,14 +300,13 @@ export default function App() {
         </div>
       </div>
 
-      {/* Nav Tabs */}
       <div style={{ background: "#1a1714", borderBottom: "1px solid #2a2520" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", padding: "0 24px" }}>
           {["dashboard", "transaksi", "rekening", "laporan"].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               background: "none", border: "none", color: activeTab === tab ? "#e8c96a" : "#7a6f5e",
               padding: "14px 16px", fontFamily: "inherit", fontSize: 13, cursor: "pointer",
-              borderBottom: activeTab === tab ? "2px solid #e8c96a" : "2px solid transparent", letterSpacing: "0.05em"
+              borderBottom: activeTab === tab ? "2px solid #e8c96a" : "2px solid transparent"
             }}>
               {tab === "dashboard" ? "📊 Dashboard" : tab === "transaksi" ? "📋 Transaksi" : tab === "rekening" ? "🏦 Rekening" : "📈 Laporan"}
             </button>
@@ -339,13 +316,12 @@ export default function App() {
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 24px" }}>
 
-        {/* Form Transaksi */}
         {showForm && (
           <div style={{ background: "#1a1714", border: "1px solid #2a2520", borderRadius: 16, padding: 24, marginBottom: 28 }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 18, color: "#e8c96a" }}>{editId ? "✏️ Edit Transaksi" : "➕ Transaksi Baru"}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <div>
-                <label style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>JENIS</label>
+                <label style={{ fontSize: 11, color: "#7a6f5e", display: "block", marginBottom: 6 }}>JENIS</label>
                 <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, category: "" }))}
                   style={{ width: "100%", background: "#0f0e0c", border: "1px solid #2a2520", borderRadius: 8, padding: "10px 12px", color: form.type === "income" ? "#4caf78" : "#e05555", fontFamily: "inherit", fontSize: 14 }}>
                   <option value="income">⬆ Pemasukan</option>
@@ -353,12 +329,12 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>JUMLAH (Rp)</label>
+                <label style={{ fontSize: 11, color: "#7a6f5e", display: "block", marginBottom: 6 }}>JUMLAH (Rp)</label>
                 <input type="number" placeholder="0" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", background: "#0f0e0c", border: "1px solid #2a2520", borderRadius: 8, padding: "10px 12px", color: "#e8e0d0", fontFamily: "inherit", fontSize: 14 }} />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>KATEGORI</label>
+                <label style={{ fontSize: 11, color: "#7a6f5e", display: "block", marginBottom: 6 }}>KATEGORI</label>
                 <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                   style={{ width: "100%", background: "#0f0e0c", border: "1px solid #2a2520", borderRadius: 8, padding: "10px 12px", color: "#e8e0d0", fontFamily: "inherit", fontSize: 14 }}>
                   <option value="">Pilih kategori</option>
@@ -366,7 +342,7 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>REKENING</label>
+                <label style={{ fontSize: 11, color: "#7a6f5e", display: "block", marginBottom: 6 }}>REKENING</label>
                 <select value={form.rekeningId} onChange={e => setForm(f => ({ ...f, rekeningId: e.target.value }))}
                   style={{ width: "100%", background: "#0f0e0c", border: "1px solid #2a2520", borderRadius: 8, padding: "10px 12px", color: "#e8e0d0", fontFamily: "inherit", fontSize: 14 }}>
                   <option value="">Pilih rekening</option>
@@ -374,12 +350,12 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>TANGGAL</label>
+                <label style={{ fontSize: 11, color: "#7a6f5e", display: "block", marginBottom: 6 }}>TANGGAL</label>
                 <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", background: "#0f0e0c", border: "1px solid #2a2520", borderRadius: 8, padding: "10px 12px", color: "#e8e0d0", fontFamily: "inherit", fontSize: 14 }} />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.1em", display: "block", marginBottom: 6 }}>DESKRIPSI</label>
+                <label style={{ fontSize: 11, color: "#7a6f5e", display: "block", marginBottom: 6 }}>DESKRIPSI</label>
                 <input type="text" placeholder="Keterangan..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", background: "#0f0e0c", border: "1px solid #2a2520", borderRadius: 8, padding: "10px 12px", color: "#e8e0d0", fontFamily: "inherit", fontSize: 14 }} />
               </div>
@@ -393,7 +369,6 @@ export default function App() {
           </div>
         )}
 
-        {/* DASHBOARD */}
         {activeTab === "dashboard" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 28 }}>
@@ -438,7 +413,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TRANSAKSI */}
         {activeTab === "transaksi" && (
           <div>
             <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
@@ -464,9 +438,7 @@ export default function App() {
                       </div>
                       <div>
                         <div style={{ fontSize: 14, color: "#d4c8a8", fontWeight: 600 }}>{t.description}</div>
-                        <div style={{ fontSize: 11, color: "#5a5040", marginTop: 2 }}>
-                          {t.category}{rek ? ` · ${rek.nama}` : ""} · {new Date(t.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                        </div>
+                        <div style={{ fontSize: 11, color: "#5a5040", marginTop: 2 }}>{t.category}{rek ? ` · ${rek.nama}` : ""} · {new Date(t.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</div>
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -485,24 +457,18 @@ export default function App() {
           </div>
         )}
 
-        {/* REKENING */}
         {activeTab === "rekening" && (
           <div>
-            {/* Total Saldo */}
             <div style={{ background: "linear-gradient(135deg, #1a1714, #111a14)", border: "1px solid #2a2520", borderRadius: 16, padding: "24px", marginBottom: 20, textAlign: "center" }}>
               <div style={{ fontSize: 11, color: "#7a6f5e", letterSpacing: "0.15em", marginBottom: 8 }}>TOTAL SALDO</div>
               <div style={{ fontSize: 32, fontWeight: 700, color: "#e8c96a" }}>{formatRupiah(totalSaldoRekening)}</div>
             </div>
-
-            {/* Tombol tambah rekening */}
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
               <button onClick={() => { setShowRekeningForm(!showRekeningForm); setEditRekeningId(null); setRekeningForm({ nama: "", saldo: "" }); }}
                 style={{ background: "none", color: "#e8c96a", border: "1px solid #e8c96a", borderRadius: 8, padding: "8px 16px", fontFamily: "inherit", fontSize: 12, cursor: "pointer" }}>
                 + Tambah Rekening
               </button>
             </div>
-
-            {/* Form Rekening */}
             {showRekeningForm && (
               <div style={{ background: "#1a1714", border: "1px solid #2a2520", borderRadius: 16, padding: 20, marginBottom: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: "#e8c96a", marginBottom: 14 }}>{editRekeningId ? "✏️ Edit Rekening" : "➕ Rekening Baru"}</div>
@@ -526,8 +492,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
-            {/* List Rekening */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {rekening.length === 0 && <div style={{ color: "#5a5040", padding: "40px 0", textAlign: "center" }}>Belum ada rekening. Klik "+ Tambah Rekening"!</div>}
               {rekening.map(r => (
@@ -552,7 +516,6 @@ export default function App() {
           </div>
         )}
 
-        {/* LAPORAN */}
         {activeTab === "laporan" && (
           <div>
             <div style={{ background: "#1a1714", border: "1px solid #2a2520", borderRadius: 16, padding: "24px", marginBottom: 24 }}>
@@ -619,12 +582,11 @@ export default function App() {
           </div>
         )}
 
-        {/* Footer */}
         <div style={{ borderTop: "1px solid #2a2520", marginTop: 40, padding: "24px", textAlign: "center" }}>
-          <div style={{ fontSize: 13, color: "#5a5040" }}>
-          {" "}<span style={{ color: "#e8c96a", fontWeight: 700 }}>AKSARA CLASS A-2025</span>
-          </div>
-          <div style={{ fontSize: 11, color: "#3a3028", marginTop: 8 }}>github.com/muhammadyusuff857-cyber/fintrack</div>
+          <div style={{ fontSize: 13, color: "#5a5040" }}>Dibuat oleh{" "}<span style={{ color: "#e8c96a", fontWeight: 700 }}>Muh. Yusuff 250901600002</span></div>
+          <div style={{ fontSize: 12, color: "#5a5040", marginTop: 4 }}>Mahasiswa Akuntansi Sarjana Terapan</div>
+          <div style={{ fontSize: 12, color: "#5a5040", marginTop: 2 }}>Universitas Negeri Makassar · 2026</div>
+          <div style={{ fontSize: 11, color: "#3a3028", marginTop: 6 }}>github.com/muhammadyusuff857-cyber/fintrack</div>
         </div>
       </div>
     </div>

@@ -583,9 +583,7 @@ export default function App() {
         )}
 
         <div style={{ borderTop: "1px solid #2a2520", marginTop: 40, padding: "24px", textAlign: "center" }}>
-          <div style={{ fontSize: 13, color: "#5a5040" }}>Dibuat oleh{" "}<span style={{ color: "#e8c96a", fontWeight: 700 }}>Muh. Yusuff 250901600002</span></div>
-          <div style={{ fontSize: 12, color: "#5a5040", marginTop: 4 }}>Mahasiswa Akuntansi Sarjana Terapan</div>
-          <div style={{ fontSize: 12, color: "#5a5040", marginTop: 2 }}>Universitas Negeri Makassar · 2026</div>
+          <div style={{ fontSize: 13, color: "#5a5040" }}>{" "}<span style={{ color: "#e8c96a", fontWeight: 700 }}>AKSARA CLASS A-25</span></div>
           <div style={{ fontSize: 11, color: "#3a3028", marginTop: 6 }}>github.com/muhammadyusuff857-cyber/fintrack</div>
         </div>
       </div>
